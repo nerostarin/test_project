@@ -1,18 +1,12 @@
 import os
-import cv2
-import pytesseract
+import random
 import numpy as np
 import tensorflow as tf
-import scipy
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, BatchNormalization
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping
-
-tf.data.experimental.enable_debug_mode()
-# Tesseract OCR 실행 경로 설정
-pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+from tensorflow.keras.preprocessing import image
 
 # 데이터 경로 설정
 train_data_dir = 'C:/Users/NERO/Desktop/test_project/path_to_train_data_directory'
@@ -77,6 +71,55 @@ model.fit(
     callbacks=[early_stopping]
 )
 
+# 테스트 이미지가 있는 폴더 경로 설정
+test_image_folder = 'C:/Users/NERO/Desktop/test_project/getimage'
 
+# 폴더 내의 이미지 파일 목록을 가져옵니다.
+image_files = [f for f in os.listdir(test_image_folder) if os.path.isfile(os.path.join(test_image_folder, f))]
 
+# 피드백 처리를 위한 반복문
+for random_image_file in image_files:
+    random_image_path = os.path.join(test_image_folder, random_image_file)
 
+    # 테스트 이미지 불러오기
+    img = image.load_img(random_image_path, target_size=(img_width, img_height))
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)  # (1, 150, 150, 3) 형태로 변환
+
+ # 이미지 예측
+predictions = model.predict(img_array)
+
+# 예측 결과 클래스
+predicted_class = 1 if predictions[0] > 0.5 else 0
+
+# 클래스에 대응하는 폴더 이름 리스트
+class_folder_names = ['box', 'plastic']  # 클래스에 해당하는 폴더 이름 리스트
+
+# 예측 결과 출력
+predicted_folder_name = class_folder_names[predicted_class]
+print(f'image file: {random_image_file}')
+print(f'this is a: {predicted_folder_name}')
+
+# 사용자에게 정답 입력 받기
+print("Is this prediction correct? (yes/no):")
+correct_answer = 'no'  # input().strip().lower()
+
+# 정답이 틀렸을 경우 모델 재학습
+if correct_answer == 'no':
+    print("Please enter the correct class (box/plastic):")
+    correct_class = 'plastic'  # input().strip().lower()
+
+    if correct_class in class_folder_names:
+        # 잘못 예측된 이미지와 정답 라벨을 수집하고 이를 새로운 학습 데이터로 추가
+        misclassified_images = img_array / 255.0  # 이미지를 0~1 사이로 정규화
+        correct_labels = np.array([1 if correct_class == 'plastic' else 0])
+
+        # 새로운 데이터로 모델을 재학습
+        model.fit(
+            misclassified_images,
+            correct_labels,
+            epochs=5,  # 원하는 횟수로 설정
+            batch_size=batch_size
+        )
+    else:
+        print("Invalid class. Please enter 'box' or 'plastic'.")
